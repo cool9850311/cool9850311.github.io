@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customizable Lucky Wheel</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            padding: 0 20px;
+        }
+        #controls {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            width: 30%;
+        }
+        #buttons {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 20px;
+        }
+        #wheel-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 60%;
+            position: relative;
+        }
+        #wheel {
+            border-radius: 50%;
+            background-color: rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        #pointer {
+            position: absolute;
+            top: 53%;
+            left: 50%;
+            transform: translate(-50%, -100%);
+            width: 50px; /* 根據圖片大小調整 */
+            height: 50px; /* 根據圖片大小調整 */
+            background: url('pabo.png') no-repeat center center;
+            background-size: contain;
+            z-index: 1;
+        }
+        #spinButton, #equalizeButton {
+            padding: 10px 20px;
+            background-color: #f39c12;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        #segmentsTextarea, #logTextarea {
+            width: 100%;
+            height: 150px;
+            margin-top: 10px;
+        }
+        #error {
+            color: red;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div id="controls">
+    <textarea id="segmentsTextarea" placeholder="輸入項目名稱和百分比，每行一個獎品，名稱和百分比用空格分隔。例如：&#10;項目1 40&#10;項目2 60"></textarea>
+    <div id="buttons">
+        <button id="equalizeButton">平分機率</button>
+        <button id="spinButton">Spin!</button>
+    </div>
+    <div id="error"></div>
+    <textarea id="logTextarea" placeholder="抽獎紀錄將顯示在這裡..." readonly></textarea>
+</div>
+
+<div id="wheel-container">
+    <canvas id="wheel" width="500" height="500"></canvas>
+    <div id="pointer"></div>
+</div>
+
+<script>
+    const canvas = document.getElementById("wheel");
+    const ctx = canvas.getContext("2d");
+    const spinButton = document.getElementById("spinButton");
+    const equalizeButton = document.getElementById("equalizeButton");
+    const segmentsTextarea = document.getElementById("segmentsTextarea");
+    const errorDiv = document.getElementById("error");
+    const logTextarea = document.getElementById("logTextarea");
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(centerX, centerY);
+    let angle = 0;
+    let isSpinning = false;
+    let spinCount = 0;
+
+    const segmentColors = [];
+    let segmentColorMap = {};
+
+    function getSegments() {
+        const lines = segmentsTextarea.value.trim().split('\n');
+        let segments = [];
+        let totalPercentage = 0;
+
+        lines.forEach((line, index) => {
+            const [name, percentage] = line.split(' ');
+            const parsedPercentage = parseFloat(percentage);
+            totalPercentage += parsedPercentage;
+            if (index >= segmentColors.length) {
+                segmentColors.push(getRandomColor());
+            }
+            segments.push({ color: segmentColors[index], text: name, percentage: parsedPercentage });
+        });
+
+        if (Math.abs(totalPercentage - 100) > 0.01) { // 允許微小的浮點數誤差
+            errorDiv.textContent = "所有獎品的百分比總和必須等於 100%！";
+            return null;
+        } else {
+            errorDiv.textContent = "";
+        }
+
+        return segments;
+    }
+
+    function drawWheel(segments, angle) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(angle);
+        ctx.translate(-centerX, -centerY);
+
+        let startAngle = -Math.PI / 2;  // 從12點鐘方向開始
+        segments.forEach(segment => {
+            const sliceAngle = (segment.percentage / 100) * 2 * Math.PI;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
+            ctx.closePath();
+            ctx.fillStyle = segment.color;
+            ctx.fill();
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(startAngle + sliceAngle / 2);
+            ctx.textAlign = "right";
+            ctx.fillStyle = "white";
+            ctx.font = "bold 20px Arial";
+            ctx.fillText(segment.text, radius - 10, 10);
+            ctx.restore();
+
+            // 記錄每個獎項的顏色
+            segmentColorMap[segment.color] = segment.text;
+
+            startAngle += sliceAngle;
+        });
+
+        ctx.restore();
+    }
+
+    function spin() {
+        const segments = getSegments();
+        if (!segments || isSpinning) return;
+
+        isSpinning = true;
+        const totalAngle = Math.random() * 360 + 1440; // 至少轉四圈
+        let spinTime = 0;
+        const spinTimeTotal = 10000; // 轉動時間至少 5 秒
+        let currentAngle = 0;
+
+        function easeOut(t) {
+            return 1 - Math.pow(1 - t, 3); // 使用 easeOut 函數模擬減速效果
+        }
+
+        function rotateWheel() {
+            spinTime += 20; // 調整增量以控制轉動速度
+            if (spinTime >= spinTimeTotal) {
+                isSpinning = false;
+                // 獲取12點鐘方向的顏色
+                const imageData = ctx.getImageData(centerX, 1, 1, 1); // 調整取樣位置
+                const color = rgbToHex(imageData.data[0], imageData.data[1], imageData.data[2]);
+                const winningItem = findClosestColor(color);
+                alert("You won: " + winningItem);
+                logResult(winningItem);
+                return;
+            }
+
+            const progress = spinTime / spinTimeTotal;
+            const easedProgress = easeOut(progress);
+            currentAngle = (totalAngle * easedProgress) % 360;
+            drawWheel(segments, currentAngle * Math.PI / 180);
+            requestAnimationFrame(rotateWheel);
+        }
+
+        rotateWheel();
+    }
+
+    function logResult(winningItem) {
+        spinCount++;
+        const currentResults = logTextarea.value.trim();
+        const newResult = `${currentResults ? currentResults + '\n' : ''}${spinCount}. ${winningItem}`;
+        logTextarea.value = newResult;
+    }
+
+    function findClosestColor(targetColor) {
+        let closestColor = null;
+        let minDifference = Infinity;
+
+        for (let color in segmentColorMap) {
+            const difference = colorDifference(targetColor, color);
+
+            if (difference < minDifference) {
+                minDifference = difference;
+                closestColor = color;
+            }
+        }
+
+        console.log(`Target color: ${targetColor}, Closest color: ${closestColor}, Winning item: ${segmentColorMap[closestColor]}`);
+        return segmentColorMap[closestColor];
+    }
+
+    function colorDifference(hex1, hex2) {
+        const rgb1 = hexToRgb(hex1);
+        const rgb2 = hexToRgb(hex2);
+
+        return Math.sqrt(
+            Math.pow(rgb1.r - rgb2.r, 2) +
+            Math.pow(rgb1.g - rgb2.g, 2) +
+            Math.pow(rgb1.b - rgb2.b, 2)
+        );
+    }
+
+    function rgbToHex(r, g, b) {
+        return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+    }
+
+    function hexToRgb(hex) {
+        const bigint = parseInt(hex.slice(1), 16);
+        return {
+            r: (bigint >> 16) & 255,
+            g: (bigint >> 8) & 255,
+            b: bigint & 255
+        };
+    }
+
+    function getRandomColor() {
+        const letters = '0123456789ABCDEF';
+        let color = '#';
+        for (let i = 0; i < 6; i++) {
+            color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+    }
+
+    function equalizePercentages() {
+        const lines = segmentsTextarea.value.trim().split('\n');
+        const numSegments = lines.length;
+        const equalPercentage = (100 / numSegments).toFixed(2);
+        let totalPercentage = 0;
+        let adjustedPercentages = [];
+
+        for (let i = 0; i < numSegments; i++) {
+            if (i === numSegments - 1) {
+                adjustedPercentages.push((100 - totalPercentage).toFixed(2));
+            } else {
+                adjustedPercentages.push(equalPercentage);
+                totalPercentage += parseFloat(equalPercentage);
+            }
+        }
+
+        const newLines = lines.map((line, index) => {
+            const [name] = line.split(' ');
+            return `${name} ${adjustedPercentages[index]}`;
+        });
+
+        segmentsTextarea.value = newLines.join('\n');
+        segmentsTextarea.dispatchEvent(new Event('input')); // 手動觸發 input 事件
+    }
+
+    segmentsTextarea.addEventListener("input", () => {
+        const segments = getSegments();
+        if (segments) {
+            drawWheel(segments, 0);
+        }
+    });
+
+    equalizeButton.addEventListener("click", equalizePercentages);
+    spinButton.addEventListener("click", spin);
+
+    // 初始化轉盤
+    function initWheel() {
+        const segments = getSegments();
+        if (segments) {
+            drawWheel(segments, 0);
+        }
+    }
+
+    // 頁面加載完成後初始化轉盤
+    window.onload = initWheel;
+</script>
+
+</body>
+</html>
