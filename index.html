@@ -67,6 +67,47 @@
             margin-top: 10px;
             font-weight: bold;
         }
+        #winningPopup {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: none;
+            border-radius: 5px;
+            padding: 0; /* 移除 padding */
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            z-index: 2;
+        }
+        #winningPopup img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        #winningPopup .close {
+            position: absolute;
+            top: 5%;
+            right: 2%;
+            cursor: pointer;
+            border: none;
+            padding: 0; /* 移除 padding */
+            width: 3%; /* 根据需要调整大小 */
+            height: auto;
+        }
+        #winningPopup .close img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        #winningPopup #winningMessage {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: black; /* 根据需要调整颜色 */
+            font-size: 20px; /* 根据需要调整字体大小 */
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -84,6 +125,13 @@
 <div id="wheel-container">
     <canvas id="wheel" width="500" height="500"></canvas>
     <div id="pointer"></div>
+    <div id="winningPopup">
+        <img src="pabo_pop_window.png" alt="Popup Background">
+        <button class="close" onclick="closePopup()">
+            <img src="pabo_exit_button.png" alt="Close Button">
+        </button>
+        <p id="winningMessage"></p>
+    </div>
 </div>
 
 <script>
@@ -186,7 +234,7 @@
                 const imageData = ctx.getImageData(centerX, 1, 1, 1); // 調整取樣位置
                 const color = rgbToHex(imageData.data[0], imageData.data[1], imageData.data[2]);
                 const winningItem = findClosestColor(color);
-                alert("You won: " + winningItem);
+                showPopup("你抽中了: " + winningItem);
                 logResult(winningItem);
                 return;
             }
@@ -281,6 +329,18 @@
 
         segmentsTextarea.value = newLines.join('\n');
         segmentsTextarea.dispatchEvent(new Event('input')); // 手動觸發 input 事件
+    }
+
+    function showPopup(message) {
+        const popup = document.getElementById("winningPopup");
+        const messageElement = document.getElementById("winningMessage");
+        messageElement.textContent = message;
+        popup.style.display = "block";
+    }
+
+    function closePopup() {
+        const popup = document.getElementById("winningPopup");
+        popup.style.display = "none";
     }
 
     segmentsTextarea.addEventListener("input", () => {
