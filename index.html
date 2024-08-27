@@ -160,7 +160,7 @@
 
         lines.forEach((line, index) => {
             const [name, percentage] = line.split(' ');
-            const parsedPercentage = parseFloat(percentage);
+            const parsedPercentage = Math.round(parseFloat(percentage).toFixed(2) * 100); // Scale up to avoid float issues
             totalPercentage += parsedPercentage;
             if (index >= segmentColors.length) {
                 segmentColors.push(getRandomColor());
@@ -168,12 +168,18 @@
             segments.push({ color: segmentColors[index], text: name, percentage: parsedPercentage });
         });
 
-        if (Math.abs(totalPercentage - 100) > 0.01) { // 允許微小的浮點數誤差
+        if (totalPercentage !== 10000) { // Check against scaled total (100 * 100)
             errorDiv.textContent = "所有獎品的百分比總和必須等於 100%！";
             return null;
         } else {
             errorDiv.textContent = "";
         }
+
+        // Scale percentages back down
+        segments = segments.map(segment => ({
+            ...segment,
+            percentage: segment.percentage / 100
+        }));
 
         return segments;
     }
