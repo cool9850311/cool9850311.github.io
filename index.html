@@ -48,7 +48,7 @@
             background-size: contain;
             z-index: 1;
         }
-        #spinButton, #equalizeButton {
+        #spinButton, #equalizeButton, #tenSpinButton {
             padding: 10px 20px;
             background-color: #f39c12;
             color: white;
@@ -75,9 +75,10 @@
             transform: translate(-50%, -50%);
             border: none;
             border-radius: 5px;
-            padding: 0; /* 移除 padding */
+            padding: 0;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             z-index: 2;
+            overflow: hidden;
         }
         #winningPopup img {
             width: 100%;
@@ -90,8 +91,8 @@
             right: 2%;
             cursor: pointer;
             border: none;
-            padding: 0; /* 移除 padding */
-            width: 3%; /* 根据需要调整大小 */
+            padding: 0;
+            width: 3%;
             height: auto;
         }
         #winningPopup .close img {
@@ -101,12 +102,27 @@
         }
         #winningPopup #winningMessage {
             position: absolute;
-            top: 30%;
+            top: 40%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: black; /* 根据需要调整颜色 */
-            font-size: 20px; /* 根据需要调整字体大小 */
+            color: black;
+            font-size: 20px; /* Default font size */
             text-align: center;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+        #winningPopup.scaled #winningMessage {
+            font-size: 10px; /* Font size when scaled */
+        }
+        .scaled {
+            transform: scale(1.5);
+        }
+        #winningPopup.scaled {
+            transform: translate(-50%, -50%) scale(1.5);
+        }
+        #winningPopup .close.scaled {
+            transform: scale(1.5);
         }
     </style>
 </head>
@@ -117,6 +133,7 @@
     <div id="buttons">
         <button id="equalizeButton">平分機率</button>
         <button id="spinButton">Spin!</button>
+        <button id="tenSpinButton">10 連轉盤</button>
     </div>
     <div id="error"></div>
     <textarea id="logTextarea" placeholder="抽獎紀錄將顯示在這裡..." readonly></textarea>
@@ -337,16 +354,56 @@
         segmentsTextarea.dispatchEvent(new Event('input')); // 手動觸發 input 事件
     }
 
-    function showPopup(message) {
+    function showPopup(message, scale = false) {
         const popup = document.getElementById("winningPopup");
         const messageElement = document.getElementById("winningMessage");
-        messageElement.textContent = message;
+        const closeButton = popup.querySelector('.close');
+        
+        messageElement.innerText = message;
         popup.style.display = "block";
+
+        if (scale) {
+            popup.classList.add("scaled");
+            closeButton.classList.add("scaled");
+        } else {
+            popup.classList.remove("scaled");
+            closeButton.classList.remove("scaled");
+        }
     }
 
     function closePopup() {
         const popup = document.getElementById("winningPopup");
         popup.style.display = "none";
+    }
+
+    function tenSpins() {
+        const segments = getSegments();
+        if (!segments) return;
+
+        let results = [];
+        for (let i = 0; i < 10; i++) {
+            const selectedItem = selectRandomItem(segments);
+            results.push(selectedItem);
+
+            // 使用現有的 logResult 函數記錄結果
+            logResult(selectedItem);
+        }
+
+        // 在彈出視窗中顯示結果，並放大
+        showPopup("你抽中了:\n" + results.join('\n'), true);
+    }
+
+    function selectRandomItem(segments) {
+        const rand = Math.random() * 100;
+        let sum = 0;
+        for (let segment of segments) {
+            sum += segment.percentage;
+            if (rand <= sum) {
+                return segment.text;
+            }
+        }
+        // 若因浮點數精度問題未匹配，返回最後一個項目
+        return segments[segments.length - 1].text;
     }
 
     segmentsTextarea.addEventListener("input", () => {
@@ -358,6 +415,10 @@
 
     equalizeButton.addEventListener("click", equalizePercentages);
     spinButton.addEventListener("click", spin);
+
+    // 獲取新按鈕並添加事件監聽器
+    const tenSpinButton = document.getElementById("tenSpinButton");
+    tenSpinButton.addEventListener("click", tenSpins);
 
     // 初始化轉盤
     function initWheel() {
